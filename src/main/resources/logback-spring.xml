@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring Boot has some logging documentation on the special properties / env vars for logging:
+
+  https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging
+
+  https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.logging
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+    <!-- make file contain JSON structured logging -->
+    <include resource="json-file-appender.xml" />
+
+    <logger name="com.example.restservice" level="DEBUG"/>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE" />
+      <appender-ref ref="FILE" />
+  </root>
+</configuration>
