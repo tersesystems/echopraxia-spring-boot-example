@@ -8,7 +8,11 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:0.0.2'
+    // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/logstash/
+	implementation 'com.tersesystems.echopraxia:logstash:0.0.3'
+    // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/scripting/
+    implementation 'com.tersesystems.echopraxia:scripting:0.0.3'
+
     // typically you also want the latest version of logstash-logback-encoder as well...
     // https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
@@ -40,6 +44,30 @@ private final Logger<HttpRequestFieldBuilder> logger = LoggerFactory.getLogger(g
     });
 ```
 
+We can also add conditions that allow us to debug code with targeted debugging statements.  Here, we'll set up a debug logger based off the original logger:
+
+```java
+private final Condition debugCondition = ScriptCondition.create(false,
+        Paths.get("condition.tf"),
+        e -> logger.error("Script failed!", e));
+
+private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+```
+
+This will connect to a [Tweakflow](https://twineworks.github.io/tweakflow/) script that can evaluate context fields passed in.  In this case, we only want to return true if the remote address starts with `127`:
+
+```
+import * as std from "std";
+alias std.strings as str;
+
+library echopraxia {
+  function evaluate: (string level, dict fields) ->
+    str.starts_with?(fields[:request_remote_addr], "127");
+}
+```
+
+Using a script is very useful for debugging as you can change conditions in the script on the fly while your Spring Boot application is running, and the script manager will detect and recompile the script for you.
+
 Here's the whole `GreetingController` code:
 
 ```java
@@ -67,7 +95,14 @@ public class GreetingController {
     public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
         logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
 
+        debugLogger.debug("This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
+
         return new Greeting(counter.incrementAndGet(), String.format(template, name));
+    }
+
+    private Condition traceCondition() {
+        Path path = Paths.get("condition.tf");
+        return ScriptCondition.create(false, path, e -> logger.error("Script failed!", e));
     }
 }
 ```
