@@ -76,7 +76,6 @@ import com.tersesystems.echopraxia.*;
 
 @RestController
 public class GreetingController {
-
     private static final String template = "Hello, %s!";
     private final AtomicLong counter = new AtomicLong();
 
@@ -91,6 +90,12 @@ public class GreetingController {
                                 return fb.requestFields(request);
                             });
 
+    private final Condition debugCondition = ScriptCondition.create(false,
+            Paths.get("condition.tf"),
+            e -> logger.error("Script failed!", e));
+
+    private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+
     @GetMapping("/greeting")
     public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
         logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
@@ -98,11 +103,6 @@ public class GreetingController {
         debugLogger.debug("This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
         return new Greeting(counter.incrementAndGet(), String.format(template, name));
-    }
-
-    private Condition traceCondition() {
-        Path path = Paths.get("condition.tf");
-        return ScriptCondition.create(false, path, e -> logger.error("Script failed!", e));
     }
 }
 ```
