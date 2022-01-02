@@ -9,9 +9,9 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 ```groovy
 dependencies {
     // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/logstash/
-	implementation 'com.tersesystems.echopraxia:logstash:0.0.3'
+	implementation 'com.tersesystems.echopraxia:logstash:1.0.0'
     // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/scripting/
-    implementation 'com.tersesystems.echopraxia:scripting:0.0.3'
+    implementation 'com.tersesystems.echopraxia:scripting:1.0.0'
 
     // typically you also want the latest version of logstash-logback-encoder as well...
     // https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder
