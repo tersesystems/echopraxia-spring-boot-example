@@ -12,17 +12,18 @@ repositories {
 	mavenCentral()
 }
 
-dependencies {
-	// https://mvnrepository.com/artifact/com.tersesystems.echopraxia/logstash/
-	implementation 'com.tersesystems.echopraxia:logstash:1.0.0'
-	// https://mvnrepository.com/artifact/com.tersesystems.echopraxia/scripting/
-	implementation 'com.tersesystems.echopraxia:scripting:1.0.0'
+configurations {
+    implementation.exclude module: 'spring-boot-starter-logging'
+}
 
-	// typically you also want the latest version of logstash-logback-encoder as well...
-	// https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder
-	implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
+dependencies {
+	implementation 'com.tersesystems.echopraxia:log4j:1.1.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+	implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.17.1'
+	
 	testImplementation('org.springframework.boot:spring-boot-starter-test')
 }
 
