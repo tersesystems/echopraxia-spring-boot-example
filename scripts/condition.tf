@@ -13,6 +13,6 @@ library echopraxia {
   # fields: the dictionary of fields
   #
   function evaluate: (string level, dict fields) ->
-    str.starts_with?(fields[:request_remote_addr], "127");
+    fields[:request_remote_addr] == "127.0.0.1";
 
 }

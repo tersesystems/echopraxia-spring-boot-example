@@ -32,21 +32,21 @@ public class GreetingController {
   private final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
 
   // Creates a condition from a script and re-evaluates it whenever the script changes
-  //  private final Condition debugCondition =
-  //      ScriptCondition.create(
-  //          scriptWatchService.watchScript(
-  //              scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e)));
+  private final Condition debugCondition =
+      ScriptCondition.create(
+          scriptWatchService.watchScript(
+              scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e)));
 
   // Creates a debug logger that will filter out any requests that doesn't meet the condition.
-  //private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+  private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
 
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
 
     // the logger must be set to DEBUG level and also meet the condition.
-    //    debugLogger.debug(
-    //        "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
+    debugLogger.debug(
+        "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
     return new Greeting(counter.incrementAndGet(), String.format(template, name));
   }
