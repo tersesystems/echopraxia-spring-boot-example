@@ -8,14 +8,30 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-    // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/logstash/
-	implementation 'com.tersesystems.echopraxia:logstash:1.0.0'
-    // https://mvnrepository.com/artifact/com.tersesystems.echopraxia/scripting/
-    implementation 'com.tersesystems.echopraxia:scripting:1.0.0'
+	implementation 'com.tersesystems.echopraxia:logstash:1.1.0'
+    implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
 
-    // typically you also want the latest version of logstash-logback-encoder as well...
-    // https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder
+    // typically you also want the latest version of logstash-logback-encoder as well..
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
+}
+```
+
+for Log4J, you will need to exclude the `spring-boot-starter-logging` implementation, and then add `spring-boot-starter-log4j2` and `spring-boot-starter-web` explicitly:
+
+```groovy
+configurations {
+    implementation.exclude module: 'spring-boot-starter-logging'
+}
+
+dependencies {
+	implementation 'com.tersesystems.echopraxia:log4j:1.1.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
+
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+	implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.17.1'
+	
+	testImplementation('org.springframework.boot:spring-boot-starter-test')
 }
 ```
 
@@ -71,11 +87,9 @@ Using a script is very useful for debugging as you can change conditions in the 
 Here's the whole `GreetingController` code:
 
 ```java
-import com.tersesystems.echopraxia.*;
-// ...
-
 @RestController
 public class GreetingController {
+
     private static final String template = "Hello, %s!";
     private final AtomicLong counter = new AtomicLong();
 
@@ -90,17 +104,27 @@ public class GreetingController {
                                 return fb.requestFields(request);
                             });
 
-    private final Condition debugCondition = ScriptCondition.create(false,
-            Paths.get("condition.tf"),
-            e -> logger.error("Script failed!", e));
+    // This should generally be global to the application, as it creates a watcher thread internally
+    private final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
 
+    private final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
+
+    // Creates a condition from a script and re-evaluates it whenever the script changes
+    private final Condition debugCondition =
+            ScriptCondition.create(
+                    scriptWatchService.watchScript(
+                            scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e)));
+
+    // Creates a debug logger that will filter out any requests that doesn't meet the condition.
     private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
 
     @GetMapping("/greeting")
     public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
         logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
 
-        debugLogger.debug("This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
+        // the logger must be set to DEBUG level and also meet the condition.
+        debugLogger.debug(
+                "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
         return new Greeting(counter.incrementAndGet(), String.format(template, name));
     }
@@ -125,6 +149,10 @@ public class HttpRequestFieldBuilder implements Field.Builder {
 The default `string` fields are simple key value pairs that get returned as a list.
 
 ## Spring Boot Logging
+
+There are two configurations available, Logback and Log4J.
+
+### Logback
 
 The implementation is done through `logback-spring.xml`:
 
@@ -190,3 +218,91 @@ The file appender logs to `/tmp/spring.log` and contains JSON like this:
 ```
 
 Note the `request_uri`, `request_remote_addr`, and `request_method` fields, which come from context, and the `greeting_name` which comes from an explicit argument.
+
+### Log4J
+
+For Log4J, the implementation is in `log4j-spring.xml` with a packages pointing to `com.tersesystems.echopraxia.log4j.layout`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" packages="com.tersesystems.echopraxia.log4j.layout">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT" follow="true">
+            <JsonTemplateLayout eventTemplateUri="classpath:LogstashJsonEventLayoutCustom.json"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+and the `LogstashJsonEventLayoutCustom.json` contains an `echopraxiaFields` resolver:
+
+```json
+{
+  "fields": {
+    "$resolver": "echopraxiaFields"
+  },
+  "mdc": {
+    "$resolver": "mdc"
+  },
+  "exception": {
+    "exception_class": {
+      "$resolver": "exception",
+      "field": "className"
+    },
+    "exception_message": {
+      "$resolver": "exception",
+      "field": "message",
+      "stringified": true
+    },
+    "stacktrace": {
+      "$resolver": "exception",
+      "field": "stackTrace",
+      "stackTrace": {
+        "stringified": true
+      }
+    }
+  },
+  "line_number": {
+    "$resolver": "source",
+    "field": "lineNumber"
+  },
+  "class": {
+    "$resolver": "source",
+    "field": "className"
+  },
+  "@version": 1,
+  "source_host": "${hostName}",
+  "message": {
+    "$resolver": "message",
+    "stringified": true
+  },
+  "thread_name": {
+    "$resolver": "thread",
+    "field": "name"
+  },
+  "@timestamp": {
+    "$resolver": "timestamp"
+  },
+  "level": {
+    "$resolver": "level",
+    "field": "name"
+  },
+  "file": {
+    "$resolver": "source",
+    "field": "fileName"
+  },
+  "method": {
+    "$resolver": "source",
+    "field": "methodName"
+  },
+  "logger_name": {
+    "$resolver": "logger",
+    "field": "name"
+  }
+}
+```
