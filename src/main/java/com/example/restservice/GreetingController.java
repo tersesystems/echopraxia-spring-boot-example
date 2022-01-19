@@ -1,10 +1,7 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.Condition;
 import com.tersesystems.echopraxia.Logger;
 import com.tersesystems.echopraxia.LoggerFactory;
-import com.tersesystems.echopraxia.scripting.ScriptCondition;
-import com.tersesystems.echopraxia.scripting.ScriptWatchService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,8 +9,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
@@ -24,21 +19,19 @@ public class GreetingController {
 
   private final Logger<HttpRequestFieldBuilder> logger =
       LoggerFactory.getLogger(getClass())
-          .withFieldBuilder(HttpRequestFieldBuilder.class);
-
-  // This should generally be global to the application, as it creates a watcher thread internally
-  private final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
-
-  private final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
-
-  // Creates a condition from a script and re-evaluates it whenever the script changes
-  private final Condition debugCondition =
-      ScriptCondition.create(
-          scriptWatchService.watchScript(
-              scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e)));
+          .withFieldBuilder(HttpRequestFieldBuilder.class)
+          .withFields(
+              fb -> {
+                  // Any fields that you set in context you can set conditions on later,
+                  // i.e. on the URI path, content type, or extra headers.
+                  HttpServletRequest request =
+                    ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
+                        .getRequest();
+                return fb.requestFields(request);
+              });
 
   // Creates a debug logger that will filter out any requests that doesn't meet the condition.
-  private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+  private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(Conditions.debugCondition);
 
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {

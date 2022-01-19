@@ -20,14 +20,14 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 
-	implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.1.1'
 
 	// Logstash implementation
-	implementation 'com.tersesystems.echopraxia:logstash:1.1.0'
+	implementation 'com.tersesystems.echopraxia:logstash:1.1.1'
 	implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
 
 	// Log4J implementation
-	//	implementation 'com.tersesystems.echopraxia:log4j:1.1.0'
+	//	implementation 'com.tersesystems.echopraxia:log4j:1.1.1'
 	//	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
 	//	implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.17.1'
 

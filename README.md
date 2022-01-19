@@ -8,8 +8,8 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:1.1.0'
-    implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
+	implementation 'com.tersesystems.echopraxia:logstash:1.1.1'
+    implementation 'com.tersesystems.echopraxia:scripting:1.1.1'
 
     // typically you also want the latest version of logstash-logback-encoder as well..
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
@@ -24,8 +24,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.1.0'
-	implementation 'com.tersesystems.echopraxia:scripting:1.1.0'
+	implementation 'com.tersesystems.echopraxia:log4j:1.1.1'
+	implementation 'com.tersesystems.echopraxia:scripting:1.1.1'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
@@ -60,25 +60,43 @@ private final Logger<HttpRequestFieldBuilder> logger = LoggerFactory.getLogger(g
     });
 ```
 
-We can also add conditions that allow us to debug code with targeted debugging statements.  Here, we'll set up a debug logger based off the original logger:
+We can also add conditions that allow us to debug code with targeted debugging statements.  
 
 ```java
-private final Condition debugCondition = ScriptCondition.create(false,
-        Paths.get("condition.tf"),
-        e -> logger.error("Script failed!", e));
+public class Conditions {
 
-private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+    private static final Logger logger = LoggerFactory.getLogger();
+
+    // This should generally be global to the application, as it creates a watcher thread internally
+    private static final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
+
+    // Watch the directory
+    private static final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
+
+    private static final ScriptHandle scriptHandle = scriptWatchService.watchScript(
+            scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e));
+
+    // Creates a condition from a script and re-evaluates it whenever the script changes
+    public static final Condition debugCondition = ScriptCondition.create(scriptHandle);
+}
+```
+
+Here, we'll set up a debug logger based off the original logger:
+
+```java
+private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(Conditions.debugCondition);
 ```
 
 This will connect to a [Tweakflow](https://twineworks.github.io/tweakflow/) script that can evaluate context fields passed in.  In this case, we only want to return true if the remote address starts with `127`:
 
 ```
-import * as std from "std";
-alias std.strings as str;
-
 library echopraxia {
+
+  # level: the logging level
+  # fields: the dictionary of fields
+  #
   function evaluate: (string level, dict fields) ->
-    str.starts_with?(fields[:request_remote_addr], "127");
+    fields[:request_remote_addr] != nil && str.starts_with?(fields[:request_remote_addr], "127");
 }
 ```
 
@@ -87,7 +105,6 @@ Using a script is very useful for debugging as you can change conditions in the 
 Here's the whole `GreetingController` code:
 
 ```java
-@RestController
 public class GreetingController {
 
     private static final String template = "Hello, %s!";
@@ -104,19 +121,8 @@ public class GreetingController {
                                 return fb.requestFields(request);
                             });
 
-    // This should generally be global to the application, as it creates a watcher thread internally
-    private final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
-
-    private final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
-
-    // Creates a condition from a script and re-evaluates it whenever the script changes
-    private final Condition debugCondition =
-            ScriptCondition.create(
-                    scriptWatchService.watchScript(
-                            scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e)));
-
     // Creates a debug logger that will filter out any requests that doesn't meet the condition.
-    private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(debugCondition);
+    private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(Conditions.debugCondition);
 
     @GetMapping("/greeting")
     public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
