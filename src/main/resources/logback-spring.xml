@@ -7,11 +7,16 @@
   https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.logging
 -->
 <configuration>
+
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
 
-    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+          <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+        </encoder>
+    </appender>
 
     <!-- make file contain JSON structured logging -->
     <include resource="json-file-appender.xml" />

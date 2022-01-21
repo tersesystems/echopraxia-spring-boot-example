@@ -2,8 +2,7 @@
     <!-- use the default spring boot conventions here, but leverage a different encoder -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <!-- https://github.com/logfellow/logstash-logback-encoder -->
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-          <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">          
         </encoder>
 
         <file>${LOG_FILE}</file>
