@@ -8,8 +8,8 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:1.1.1'
-    implementation 'com.tersesystems.echopraxia:scripting:1.1.1'
+	implementation 'com.tersesystems.echopraxia:logstash:1.1.3'
+    implementation 'com.tersesystems.echopraxia:scripting:1.1.3'
 
     // typically you also want the latest version of logstash-logback-encoder as well..
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
@@ -24,8 +24,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.1.1'
-	implementation 'com.tersesystems.echopraxia:scripting:1.1.1'
+	implementation 'com.tersesystems.echopraxia:log4j:1.1.3'
+	implementation 'com.tersesystems.echopraxia:scripting:1.1.3'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
