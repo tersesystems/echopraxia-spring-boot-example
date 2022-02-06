@@ -8,8 +8,8 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:1.1.3'
-    implementation 'com.tersesystems.echopraxia:scripting:1.1.3'
+	implementation 'com.tersesystems.echopraxia:logstash:1.2.0'
+    implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
 
     // typically you also want the latest version of logstash-logback-encoder as well..
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
@@ -24,8 +24,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.1.3'
-	implementation 'com.tersesystems.echopraxia:scripting:1.1.3'
+	implementation 'com.tersesystems.echopraxia:log4j:1.2.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
@@ -102,38 +102,63 @@ library echopraxia {
 
 Using a script is very useful for debugging as you can change conditions in the script on the fly while your Spring Boot application is running, and the script manager will detect and recompile the script for you.
 
+Finally, we can also log asynchronously.  Using `logger.withExecutor(executor)` will return an `AsyncLogger` which will execute all logging statements in a different thread.  This can be useful whenever you don't want to risk slowing down your operation for logging.  It is important to remember that thread local variables must be copied over to the executor, for example `RequestContextHolder.getRequestAttributes()`.  The simplest way to do that is a wrapping method (the docs talk about more fancy alternatives).
+
 Here's the whole `GreetingController` code:
 
 ```java
+@RestController
 public class GreetingController {
 
-    private static final String template = "Hello, %s!";
-    private final AtomicLong counter = new AtomicLong();
+  private static final String template = "Hello, %s!";
+  private final AtomicLong counter = new AtomicLong();
 
-    private final Logger<HttpRequestFieldBuilder> logger =
-            LoggerFactory.getLogger(getClass())
-                    .withFieldBuilder(HttpRequestFieldBuilder.class)
-                    .withFields(
-                            fb -> {
-                                HttpServletRequest request =
-                                        ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
-                                                .getRequest();
-                                return fb.requestFields(request);
-                            });
+  private final Logger<HttpRequestFieldBuilder> logger =
+    LoggerFactory.getLogger(getClass())
+      .withFieldBuilder(HttpRequestFieldBuilder.class)
+      .withFields(
+        fb -> {
+          // Any fields that you set in context you can set conditions on later,
+          // i.e. on the URI path, content type, or extra headers.
+          HttpServletRequest request =
+            ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
+              .getRequest();
+          return fb.requestFields(request);
+        });
 
-    // Creates a debug logger that will filter out any requests that doesn't meet the condition.
-    private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(Conditions.debugCondition);
+  // Creates a debug logger that will filter out any requests that doesn't meet the condition.
+  private final Logger<HttpRequestFieldBuilder> debugLogger =
+    logger.withCondition(Conditions.debugCondition);
 
-    @GetMapping("/greeting")
-    public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
-        logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
+  @GetMapping("/greeting")
+  public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
+    // Log using a field builder to add a greeting_name field to JSON
+    logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
 
-        // the logger must be set to DEBUG level and also meet the condition.
-        debugLogger.debug(
-                "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
+    // the logger must be set to DEBUG level and also meet the condition.
+    debugLogger.debug(
+      "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
-        return new Greeting(counter.incrementAndGet(), String.format(template, name));
-    }
+    // Can also log asynchronously in a different thread if the condition is expensive
+    debugLogger
+      .withExecutor(ForkJoinPool.commonPool())
+      .debug(wrap(h -> h.log("Same, but logs asynchronously")));
+
+    return new Greeting(counter.incrementAndGet(), String.format(template, name));
+  }
+
+  private Consumer<LoggerHandle<HttpRequestFieldBuilder>> wrap(
+    Consumer<LoggerHandle<HttpRequestFieldBuilder>> c) {
+    final RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
+    return h -> {
+      try {
+        RequestContextHolder.setRequestAttributes(requestAttributes);
+        c.accept(h);
+      } finally {
+        RequestContextHolder.resetRequestAttributes();
+      }
+    };
+  }
 }
 ```
 
@@ -168,7 +193,15 @@ The implementation is done through `logback-spring.xml`:
 
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
 
-    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- only show INFO on console -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+        <encoder>
+            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread]: %message%n%ex</pattern>
+        </encoder>
+    </appender>
 
     <!-- make file contain JSON structured logging -->
     <include resource="json-file-appender.xml" />
@@ -176,9 +209,9 @@ The implementation is done through `logback-spring.xml`:
     <logger name="com.example.restservice" level="DEBUG"/>
 
     <root level="INFO">
-      <appender-ref ref="CONSOLE" />
-      <appender-ref ref="FILE" />
-  </root>
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </root>
 </configuration>
 ```
 
@@ -186,21 +219,41 @@ With the contents of `json-file-appender.xml`:
 
 ```xml
 <included>
-    <!-- use the default spring boot conventions here, but leverage a different encoder -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <!-- https://github.com/logfellow/logstash-logback-encoder -->
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-          <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
-        </encoder>
+    <!-- https://github.com/logfellow/logstash-logback-encoder -->
 
-        <file>${LOG_FILE}</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN:-${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}</fileNamePattern>
-            <cleanHistoryOnStart>${LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START:-false}</cleanHistoryOnStart>
-            <maxFileSize>${LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE:-10MB}</maxFileSize>
-            <totalSizeCap>${LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP:-0}</totalSizeCap>
-            <maxHistory>${LOGBACK_ROLLINGPOLICY_MAX_HISTORY:-7}</maxHistory>
-        </rollingPolicy>
+    <!-- should be using the disruptor appender by default -->
+    <appender name="FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
+        <appender class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                <providers>
+                    <timestamp>
+                        <timeZone>UTC</timeZone>
+                    </timestamp>
+                    <version/>
+                    <message/>
+                    <loggerName/>
+                    <threadName/>
+                    <logLevel/>
+                    <logLevelValue/><!-- numeric value is useful for filtering >= -->
+                    <stackHash/>
+                    <!-- <mdc/> --> <!-- not showing mdc as we want to demo withContext() -->
+                    <logstashMarkers/>
+                    <arguments/>
+                    <stackTrace/>
+                </providers>
+            </encoder>
+
+            <!-- use the default spring boot conventions here, but leverage a different encoder -->
+            <file>${LOG_FILE}</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN:-${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}</fileNamePattern>
+                <cleanHistoryOnStart>${LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START:-false}</cleanHistoryOnStart>
+                <maxFileSize>${LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE:-10MB}</maxFileSize>
+                <totalSizeCap>${LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP:-0}</totalSizeCap>
+                <maxHistory>${LOGBACK_ROLLINGPOLICY_MAX_HISTORY:-7}</maxHistory>
+            </rollingPolicy>
+        </appender>
     </appender>
 </included>
 ```
