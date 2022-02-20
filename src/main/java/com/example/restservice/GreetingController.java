@@ -38,6 +38,9 @@ public class GreetingController {
   private final Logger<HttpRequestFieldBuilder> debugLogger =
       logger.withCondition(Conditions.debugCondition);
 
+  // Can also log asynchronously in a different thread if the condition is expensive
+  private final AsyncLogger asyncLogger = AsyncLoggerFactory.getLogger(debugLogger.core(), debugLogger.fieldBuilder());
+
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     // Log using a field builder to add a greeting_name field to JSON
@@ -47,10 +50,8 @@ public class GreetingController {
     debugLogger.debug(
         "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
-    // Can also log asynchronously in a different thread if the condition is expensive
-    debugLogger
-        .withExecutor(ForkJoinPool.commonPool())
-        .debug(wrap(h -> h.log("Same, but logs asynchronously")));
+    // async logger runs in a different thread pool
+    asyncLogger.debug(wrap(h -> h.log("Same, but logs asynchronously")));
 
     return new Greeting(counter.incrementAndGet(), String.format(template, name));
   }

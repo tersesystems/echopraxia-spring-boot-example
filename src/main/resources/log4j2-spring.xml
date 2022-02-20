@@ -2,11 +2,13 @@
 <Configuration status="WARN" packages="com.tersesystems.echopraxia.log4j.layout">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT" follow="true">
-            <JsonTemplateLayout eventTemplateUri="classpath:LogstashJsonEventLayoutCustom.json"/>
+            <JsonTemplateLayout 
+              eventTemplateUri="classpath:LogstashJsonEventLayoutCustom.json" 
+              locationInfoEnabled="true"/>
         </Console>
     </Appenders>
     <Loggers>
-        <Root level="info">
+        <Root level="info" includeLocation=true>
             <AppenderRef ref="Console"/>
         </Root>
     </Loggers>
