@@ -12,6 +12,7 @@
     
     <property scope="context" name="echopraxia.async.caller" value="true"/>
 
+    <!-- logs to /tmp/spring.log by default -->
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -21,7 +22,7 @@
             <level>INFO</level>
         </filter>
         <encoder>
-            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread]: %message%n%ex%caller{2}</pattern>
+            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread] %C: %message%n%ex</pattern>
         </encoder>
     </appender>
 

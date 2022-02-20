@@ -21,6 +21,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 
 	implementation 'com.tersesystems.echopraxia:scripting:1.3.0-SNAPSHOT'
+	
+	// for the system info filter
+	implementation 'com.github.oshi:oshi-core:6.1.0'
 
 	// Logstash implementation
 	implementation 'com.tersesystems.echopraxia:logstash:1.3.0-SNAPSHOT'

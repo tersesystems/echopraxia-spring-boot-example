@@ -1,8 +1,6 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.Logger;
-import com.tersesystems.echopraxia.LoggerFactory;
-import com.tersesystems.echopraxia.LoggerHandle;
+import com.tersesystems.echopraxia.*;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,7 +9,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -39,7 +36,8 @@ public class GreetingController {
       logger.withCondition(Conditions.debugCondition);
 
   // Can also log asynchronously in a different thread if the condition is expensive
-  private final AsyncLogger asyncLogger = AsyncLoggerFactory.getLogger(debugLogger.core(), debugLogger.fieldBuilder());
+  private final AsyncLogger<HttpRequestFieldBuilder> asyncLogger =
+    AsyncLoggerFactory.getLogger(debugLogger.core(), debugLogger.fieldBuilder());
 
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {

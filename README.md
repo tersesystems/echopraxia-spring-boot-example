@@ -11,6 +11,9 @@ dependencies {
 	implementation 'com.tersesystems.echopraxia:logstash:1.2.0'
     implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
 
+    // for the system info filter
+    implementation 'com.github.oshi:oshi-core:6.1.0'
+
     // typically you also want the latest version of logstash-logback-encoder as well..
     implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
 }
@@ -107,7 +110,6 @@ Finally, we can also log asynchronously.  Using `logger.withExecutor(executor)` 
 Here's the whole `GreetingController` code:
 
 ```java
-@RestController
 public class GreetingController {
 
   private static final String template = "Hello, %s!";
@@ -130,6 +132,10 @@ public class GreetingController {
   private final Logger<HttpRequestFieldBuilder> debugLogger =
     logger.withCondition(Conditions.debugCondition);
 
+  // Can also log asynchronously in a different thread if the condition is expensive
+  private final AsyncLogger<HttpRequestFieldBuilder> asyncLogger =
+    AsyncLoggerFactory.getLogger(debugLogger.core(), debugLogger.fieldBuilder());
+
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     // Log using a field builder to add a greeting_name field to JSON
@@ -139,16 +145,18 @@ public class GreetingController {
     debugLogger.debug(
       "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
 
-    // Can also log asynchronously in a different thread if the condition is expensive
-    debugLogger
-      .withExecutor(ForkJoinPool.commonPool())
-      .debug(wrap(h -> h.log("Same, but logs asynchronously")));
+    // async logger runs in a different thread pool
+    asyncLogger.debug(wrap(h -> h.log("Same, but logs asynchronously")));
 
     return new Greeting(counter.incrementAndGet(), String.format(template, name));
   }
 
   private Consumer<LoggerHandle<HttpRequestFieldBuilder>> wrap(
     Consumer<LoggerHandle<HttpRequestFieldBuilder>> c) {
+    // Because this takes place in the fork-join common pool, we need to set request
+    // attributes in the thread before logging so we can get request fields.
+    // See below link for alternatives to a method wrap:
+    // https://medium.com/asyncparadigm/logging-in-a-multithreaded-environment-and-with-completablefuture-construct-using-mdc-1c34c691cef0
     final RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
     return h -> {
       try {
@@ -179,6 +187,49 @@ public class HttpRequestFieldBuilder implements Field.Builder {
 
 The default `string` fields are simple key value pairs that get returned as a list.
 
+## System Info Filter
+
+In addition to the explicitly defined fields added through loggers, there's another layer of filters that runs through the core logger factory.  For example, using [OSHI](https://github.com/oshi/oshi), you can add system information to every logger at once:
+
+```java
+public class SystemInfoFilter implements CoreLoggerFilter {
+
+  private final SystemInfo systemInfo;
+
+  public SystemInfoFilter() {
+    systemInfo = new SystemInfo();
+  }
+
+  @Override
+  public CoreLogger apply(CoreLogger coreLogger) {
+    HardwareAbstractionLayer hardware = systemInfo.getHardware();
+    GlobalMemory mem = hardware.getMemory();
+    CentralProcessor proc = hardware.getProcessor();
+    double[] loadAverage = proc.getSystemLoadAverage(3);
+
+    // Now you can add conditions based on these fields, and conditionally
+    // enable logging based on your load and memory!
+    return coreLogger.withFields(
+        fb -> {
+          Field loadField =
+              fb.object(
+                  "load_average", //
+                  fb.number("1min", loadAverage[0]), //
+                  fb.number("5min", loadAverage[1]), //
+                  fb.number("15min", loadAverage[2]));
+          Field memField =
+              fb.object(
+                  "mem", //
+                  fb.number("available", mem.getAvailable()), //
+                  fb.number("total", mem.getTotal()));
+          Field sysinfoField = fb.object("sysinfo", loadField, memField);
+          return fb.only(sysinfoField);
+        },
+        Field.Builder.instance());
+  }
+}
+```
+
 ## Spring Boot Logging
 
 There are two configurations available, Logback and Log4J.
@@ -188,18 +239,31 @@ There are two configurations available, Logback and Log4J.
 The implementation is done through `logback-spring.xml`:
 
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring Boot has some logging documentation on the special properties / env vars for logging:
+
+  https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging
+
+  https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.logging
+-->
 <configuration>
+
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
+    <property scope="context" name="echopraxia.async.caller" value="true"/>
+
+    <!-- logs to /tmp/spring.log by default -->
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="com.tersesystems.echopraxia.logstash.LogstashCallerDataFilter"/>
         <!-- only show INFO on console -->
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>INFO</level>
         </filter>
         <encoder>
-            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread]: %message%n%ex</pattern>
+            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread] %C: %message%n%ex</pattern>
         </encoder>
     </appender>
 
@@ -223,6 +287,7 @@ With the contents of `json-file-appender.xml`:
 
     <!-- should be using the disruptor appender by default -->
     <appender name="FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
+        <filter class="com.tersesystems.echopraxia.logstash.LogstashCallerDataFilter"/>
         <appender class="ch.qos.logback.core.rolling.RollingFileAppender">
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
@@ -234,6 +299,7 @@ With the contents of `json-file-appender.xml`:
                     <message/>
                     <loggerName/>
                     <threadName/>
+                    <callerData/>
                     <logLevel/>
                     <logLevelValue/><!-- numeric value is useful for filtering >= -->
                     <stackHash/>
