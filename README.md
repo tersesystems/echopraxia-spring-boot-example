@@ -8,8 +8,8 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:1.2.0'
-    implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
+	implementation 'com.tersesystems.echopraxia:logstash:1.3.0'
+    implementation 'com.tersesystems.echopraxia:scripting:1.3.0'
 
     // for the system info filter
     implementation 'com.github.oshi:oshi-core:6.1.0'
@@ -27,8 +27,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.2.0'
-	implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
+	implementation 'com.tersesystems.echopraxia:log4j:1.3.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.3.0'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
