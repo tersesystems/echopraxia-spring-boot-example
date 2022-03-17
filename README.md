@@ -27,8 +27,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.2.0'
-	implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
+	implementation 'com.tersesystems.echopraxia:log4j:1.4.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.4.0'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
