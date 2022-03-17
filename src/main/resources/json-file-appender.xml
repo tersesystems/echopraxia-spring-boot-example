@@ -15,7 +15,6 @@
                     <message/>
                     <loggerName/>
                     <threadName/>
-                    <callerData/>
                     <logLevel/>
                     <logLevelValue/><!-- numeric value is useful for filtering >= -->
                     <stackHash/>

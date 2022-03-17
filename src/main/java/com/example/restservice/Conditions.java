@@ -12,7 +12,7 @@ import java.nio.file.Paths;
 
 public class Conditions {
 
-    private static final Logger logger = LoggerFactory.getLogger();
+    private static final Logger<?> logger = LoggerFactory.getLogger();
 
     // This should generally be global to the application, as it creates a watcher thread internally
     private static final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
