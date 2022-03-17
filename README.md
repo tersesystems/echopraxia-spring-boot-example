@@ -8,8 +8,8 @@ First, we add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
-	implementation 'com.tersesystems.echopraxia:logstash:1.3.0'
-    implementation 'com.tersesystems.echopraxia:scripting:1.3.0'
+	implementation 'com.tersesystems.echopraxia:logstash:1.4.0'
+    implementation 'com.tersesystems.echopraxia:scripting:1.4.0'
 
     // for the system info filter
     implementation 'com.github.oshi:oshi-core:6.1.0'
@@ -27,8 +27,8 @@ configurations {
 }
 
 dependencies {
-	implementation 'com.tersesystems.echopraxia:log4j:1.3.0'
-	implementation 'com.tersesystems.echopraxia:scripting:1.3.0'
+	implementation 'com.tersesystems.echopraxia:log4j:1.2.0'
+	implementation 'com.tersesystems.echopraxia:scripting:1.2.0'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
@@ -42,74 +42,12 @@ dependencies {
 
 The greeting controller is where the logger is created.  
 
-Here, we'll set up a custom field builder that can extract elements out of an HTTP request, then use it to ensure that contextual data is extracted when logging.
-
-We first do this by calling for a `Logger` just as you would for an SLF4J logger
-
-```java
-private final Logger<HttpRequestFieldBuilder> logger = LoggerFactory.getLogger(getClass()).withFieldBuilder(HttpRequestFieldBuilder.class)
-```
-
-We'll then add a function that will get access to the HTTP request using the `withFields` method:
-
-```java
-private final Logger<HttpRequestFieldBuilder> logger = LoggerFactory.getLogger(getClass())
-    .withFieldBuilder(HttpRequestFieldBuilder.class)
-    .withFields(fb -> {
-        HttpServletRequest request =
-                ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
-                        .getRequest();
-            return fb.requestFields(request);
-    });
-```
-
-We can also add conditions that allow us to debug code with targeted debugging statements.  
-
-```java
-public class Conditions {
-
-    private static final Logger logger = LoggerFactory.getLogger();
-
-    // This should generally be global to the application, as it creates a watcher thread internally
-    private static final Path scriptDirectory = Paths.get("scripts").toAbsolutePath();
-
-    // Watch the directory
-    private static final ScriptWatchService scriptWatchService = new ScriptWatchService(scriptDirectory);
-
-    private static final ScriptHandle scriptHandle = scriptWatchService.watchScript(
-            scriptDirectory.resolve("condition.tf"), e -> logger.error(e.getMessage(), e));
-
-    // Creates a condition from a script and re-evaluates it whenever the script changes
-    public static final Condition debugCondition = ScriptCondition.create(scriptHandle);
-}
-```
-
-Here, we'll set up a debug logger based off the original logger:
-
-```java
-private final Logger<HttpRequestFieldBuilder> debugLogger = logger.withCondition(Conditions.debugCondition);
-```
-
-This will connect to a [Tweakflow](https://twineworks.github.io/tweakflow/) script that can evaluate context fields passed in.  In this case, we only want to return true if the remote address starts with `127`:
-
-```
-library echopraxia {
-
-  # level: the logging level
-  # fields: the dictionary of fields
-  #
-  function evaluate: (string level, dict fields) ->
-    fields[:request_remote_addr] != nil && str.starts_with?(fields[:request_remote_addr], "127");
-}
-```
-
-Using a script is very useful for debugging as you can change conditions in the script on the fly while your Spring Boot application is running, and the script manager will detect and recompile the script for you.
-
-Finally, we can also log asynchronously.  Using `logger.withExecutor(executor)` will return an `AsyncLogger` which will execute all logging statements in a different thread.  This can be useful whenever you don't want to risk slowing down your operation for logging.  It is important to remember that thread local variables must be copied over to the executor, for example `RequestContextHolder.getRequestAttributes()`.  The simplest way to do that is a wrapping method (the docs talk about more fancy alternatives).
+Here, we'll set up a custom field builder that can extract elements out of an HTTP request, then use it to ensure that contextual data is extracted when logging.  We can do this either using a logger, or an asynchronous logger that logs using a different executor.
 
 Here's the whole `GreetingController` code:
 
 ```java
+@RestController
 public class GreetingController {
 
   private static final String template = "Hello, %s!";
@@ -122,50 +60,39 @@ public class GreetingController {
         fb -> {
           // Any fields that you set in context you can set conditions on later,
           // i.e. on the URI path, content type, or extra headers.
-          HttpServletRequest request =
-            ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
-              .getRequest();
-          return fb.requestFields(request);
+          // These fields will be visible in the JSON file, not shown in console.
+          return fb.requestFields(httpServletRequest());
         });
 
-  // Creates a debug logger that will filter out any requests that doesn't meet the condition.
-  private final Logger<HttpRequestFieldBuilder> debugLogger =
-    logger.withCondition(Conditions.debugCondition);
+  @NotNull
+  private HttpServletRequest httpServletRequest() {
+    return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+  }
 
-  // Can also log asynchronously in a different thread if the condition is expensive
-  private final AsyncLogger<HttpRequestFieldBuilder> asyncLogger =
-    AsyncLoggerFactory.getLogger(debugLogger.core(), debugLogger.fieldBuilder());
+  // For an async logger, we need to set thread local context if we have fields that depend on it
+  private final AsyncLogger<?> asyncLogger = AsyncLoggerFactory.getLogger()
+    .withFieldBuilder(HttpRequestFieldBuilder.class)
+    .withThreadLocal(() -> {
+      // get the request attributes in rendering thread...
+      final RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
+      // ...and the "set" in the runnable will be called in the logging executor's thread
+      return () -> RequestContextHolder.setRequestAttributes(requestAttributes);
+    }).withFields(fb -> fb.requestFields(httpServletRequest()));
 
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     // Log using a field builder to add a greeting_name field to JSON
     logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
 
-    // the logger must be set to DEBUG level and also meet the condition.
-    debugLogger.debug(
-      "This message only shows up when request_remote_addr is 127.0.0.1 and level>=DEBUG");
+    asyncLogger.info("this message is logged in a different thread");
 
-    // async logger runs in a different thread pool
-    asyncLogger.debug(wrap(h -> h.log("Same, but logs asynchronously")));
+    // for async logger, if blocks don't work very well, instead use a handle method
+    asyncLogger.info(h -> {
+      // execution in this block takes place in the logger's thread
+      h.log("Complex logging statement goes here");
+    });
 
     return new Greeting(counter.incrementAndGet(), String.format(template, name));
-  }
-
-  private Consumer<LoggerHandle<HttpRequestFieldBuilder>> wrap(
-    Consumer<LoggerHandle<HttpRequestFieldBuilder>> c) {
-    // Because this takes place in the fork-join common pool, we need to set request
-    // attributes in the thread before logging so we can get request fields.
-    // See below link for alternatives to a method wrap:
-    // https://medium.com/asyncparadigm/logging-in-a-multithreaded-environment-and-with-completablefuture-construct-using-mdc-1c34c691cef0
-    final RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
-    return h -> {
-      try {
-        RequestContextHolder.setRequestAttributes(requestAttributes);
-        c.accept(h);
-      } finally {
-        RequestContextHolder.resetRequestAttributes();
-      }
-    };
   }
 }
 ```
@@ -257,13 +184,12 @@ The implementation is done through `logback-spring.xml`:
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <filter class="com.tersesystems.echopraxia.logstash.LogstashCallerDataFilter"/>
         <!-- only show INFO on console -->
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>INFO</level>
         </filter>
         <encoder>
-            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread] %C: %message%n%ex</pattern>
+            <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread]: %message%n%ex</pattern>
         </encoder>
     </appender>
 
@@ -287,7 +213,6 @@ With the contents of `json-file-appender.xml`:
 
     <!-- should be using the disruptor appender by default -->
     <appender name="FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
-        <filter class="com.tersesystems.echopraxia.logstash.LogstashCallerDataFilter"/>
         <appender class="ch.qos.logback.core.rolling.RollingFileAppender">
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
@@ -299,7 +224,6 @@ With the contents of `json-file-appender.xml`:
                     <message/>
                     <loggerName/>
                     <threadName/>
-                    <callerData/>
                     <logLevel/>
                     <logLevelValue/><!-- numeric value is useful for filtering >= -->
                     <stackHash/>
