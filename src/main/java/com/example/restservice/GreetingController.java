@@ -1,8 +1,12 @@
 package com.example.restservice;
 
 import com.tersesystems.echopraxia.*;
+import com.tersesystems.echopraxia.api.Condition;
+import com.tersesystems.echopraxia.async.AsyncLogger;
+import com.tersesystems.echopraxia.async.AsyncLoggerFactory;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,7 +15,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
@@ -21,15 +24,14 @@ public class GreetingController {
   private final AtomicLong counter = new AtomicLong();
 
   private final Logger<HttpRequestFieldBuilder> logger =
-      LoggerFactory.getLogger(getClass())
-          .withFieldBuilder(HttpRequestFieldBuilder.class)
+      LoggerFactory.getLogger(getClass(), HttpRequestFieldBuilder.instance)
           .withFields(
-              fb -> {
+              fb ->
                 // Any fields that you set in context you can set conditions on later,
                 // i.e. on the URI path, content type, or extra headers.
                 // These fields will be visible in the JSON file, not shown in console.
-                return fb.requestFields(httpServletRequest());
-              });
+                 fb.requestFields(httpServletRequest())
+              );
 
   @NotNull
   private HttpServletRequest httpServletRequest() {
@@ -38,8 +40,7 @@ public class GreetingController {
 
   // For an async logger, we need to set thread local context if we have fields that depend on it
   private final AsyncLogger<?> asyncLogger =
-      AsyncLoggerFactory.getLogger()
-          .withFieldBuilder(HttpRequestFieldBuilder.class)
+      AsyncLoggerFactory.getLogger(HttpRequestFieldBuilder.instance)
           .withThreadLocal(
               () -> {
                 // get the request attributes in rendering thread...
@@ -53,7 +54,7 @@ public class GreetingController {
   @GetMapping("/greeting")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     // Log using a field builder to add a greeting_name field to JSON
-    logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
+    logger.info("Greetings {}", fb -> fb.string("greeting_name", name));
 
     // Use a different thread for logging
     asyncLogger.info("this message is logged in a different thread");

@@ -1,6 +1,6 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.Condition;
+import com.tersesystems.echopraxia.api.Condition;
 import com.tersesystems.echopraxia.Logger;
 import com.tersesystems.echopraxia.LoggerFactory;
 import com.tersesystems.echopraxia.scripting.ScriptCondition;
@@ -10,7 +10,7 @@ import com.tersesystems.echopraxia.scripting.ScriptWatchService;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class Conditions {
+public final class Conditions {
 
     private static final Logger<?> logger = LoggerFactory.getLogger();
 

@@ -1,8 +1,6 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.Field;
-import com.tersesystems.echopraxia.core.CoreLogger;
-import com.tersesystems.echopraxia.core.CoreLoggerFilter;
+import com.tersesystems.echopraxia.api.*;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
@@ -14,6 +12,8 @@ import oshi.hardware.HardwareAbstractionLayer;
  * Configured through echopraxia.properties
  */
 public class SystemInfoFilter implements CoreLoggerFilter {
+
+  private static final FieldBuilder fieldBuilder = FieldBuilder.instance();
 
   private final SystemInfo systemInfo;
 
@@ -44,8 +44,8 @@ public class SystemInfoFilter implements CoreLoggerFilter {
                   fb.number("available", mem.getAvailable()), //
                   fb.number("total", mem.getTotal()));
           Field sysinfoField = fb.object("sysinfo", loadField, memField);
-          return fb.only(sysinfoField);
+          return (sysinfoField);
         },
-        Field.Builder.instance());
+        fieldBuilder);
   }
 }
