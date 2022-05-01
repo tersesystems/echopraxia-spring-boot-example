@@ -3,7 +3,6 @@
 
     <!-- should be using the disruptor appender by default -->
     <appender name="FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
-        <filter class="com.tersesystems.echopraxia.logstash.LogstashCallerDataFilter"/>
         <appender class="ch.qos.logback.core.rolling.RollingFileAppender">
             <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                 <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
