@@ -26,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -36,8 +38,7 @@ public class GreetingControllerTests {
 
 	@Test
 	public void noParamGreetingShouldReturnDefaultMessage() throws Exception {
-
-		this.mockMvc.perform(get("/greeting")).andDo(print()).andExpect(status().isOk())
+		this.mockMvc.perform(get("/greeting").requestAttr("userId", "testUserId")).andDo(print()).andExpect(status().isOk())
 				.andExpect(jsonPath("$.content").value("Hello, World!"));
 	}
 
