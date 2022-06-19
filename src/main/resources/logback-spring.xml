@@ -10,9 +10,9 @@
 
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- logs to /tmp/spring.log by default -->
-    <!--    <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>-->
-    <property name="LOG_FILE" value="spring.log"/>
+    <!-- logs to /tmp/spring.ndjson by default -->
+    <!--    <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.ndjson}"/>-->
+    <property name="LOG_FILE" value="spring.ndjson"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <!-- show at most DEBUG on console -->
