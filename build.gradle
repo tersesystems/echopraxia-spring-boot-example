@@ -6,12 +6,16 @@ plugins {
 
 
 repositories {
-	//mavenLocal()
+	mavenLocal()
 	mavenCentral()
 }
 
 bootRun {
   jvmArgs=["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"]
+}
+
+springBoot {
+  buildInfo()
 }
 
 // Log4J needs to exclude this
@@ -21,6 +25,7 @@ bootRun {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
 	implementation "com.tersesystems.echopraxia:logger:$version"
 	implementation "com.tersesystems.echopraxia:async:$version"

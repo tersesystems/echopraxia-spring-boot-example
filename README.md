@@ -2,9 +2,19 @@
 
 This is a sample Spring Boot application that shows structured logging using [Echopraxia](https://github.com/tersesystems/echopraxia).
 
+## Running
+
+Using `./gradlew bootRun` will start the application.
+
+You can also run Spring Boot in debug mode:
+
+```bash
+./gradlew bootRun --args='--debug'
+```
+
 ## Gradle
 
-First, we add the logstash implementation of Echopraxia to `build.gradle`:
+Adding Echopraxia to Spring Boot is straightforward.  We add the logstash implementation of Echopraxia to `build.gradle`:
 
 ```groovy
 dependencies {
@@ -20,7 +30,7 @@ dependencies {
 }
 ```
 
-for Log4J, you will need to exclude the `spring-boot-starter-logging` implementation, and then add `spring-boot-starter-log4j2` and `spring-boot-starter-web` explicitly:
+If you would rather use Log4J, you will need to exclude the `spring-boot-starter-logging` implementation, and then add `spring-boot-starter-log4j2` and `spring-boot-starter-web` explicitly:
 
 ```groovy
 configurations {
@@ -38,6 +48,12 @@ dependencies {
 	testImplementation('org.springframework.boot:spring-boot-starter-test')
 }
 ```
+
+## Changing Logging Levels
+
+You can change the logging levels dynamically by going to [http://localhost:8080/actuator/loggers](http://localhost:8080/actuator/loggers), through [Spring Boot Actuator](https://docs.spring.io/spring-boot/docs/2.5.6/reference/html/actuator.html#actuator.loggers).
+
+You can trigger the greeting controller path by going to [http://localhost:8080/greeting](http://localhost:8080/greeting).
 
 ## GreetingController
 

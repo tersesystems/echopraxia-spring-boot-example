@@ -41,6 +41,7 @@ public class GreetingController {
   // For an async logger, we need to set thread local context if we have fields that depend on it
   private final AsyncLogger<?> asyncLogger =
       AsyncLoggerFactory.getLogger(HttpRequestFieldBuilder.instance)
+          .withThreadContext()
           .withThreadLocal(
               () -> {
                 // get the request attributes in rendering thread...
@@ -64,7 +65,7 @@ public class GreetingController {
 
     // and have it available as fields when you use `withThreadContext()`
     Condition c = (l, ctx) -> ctx.findString("$.?(@.contextKey=contextValue)").isPresent();
-    asyncLogger.withThreadContext().info(c, "Async loggers are MDC aware");
+    asyncLogger.info(c, "Async loggers are MDC aware");
 
     // for async logger, if blocks don't work very well, instead use a handle method
     asyncLogger.info(
