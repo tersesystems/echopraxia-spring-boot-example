@@ -19,7 +19,6 @@ Adding Echopraxia to Spring Boot is straightforward.  We add the logstash implem
 ```groovy
 dependencies {
     implementation "com.tersesystems.echopraxia:logger:$version"
-    implementation "com.tersesystems.echopraxia:async:$version"
     implementation "com.tersesystems.echopraxia:logstash:$version"
     implementation "com.tersesystems.echopraxia:scripting:$version"
     // for the system info filter
@@ -53,17 +52,18 @@ dependencies {
 
 You can change the logging levels dynamically by going to [http://localhost:8080/actuator/loggers](http://localhost:8080/actuator/loggers), through [Spring Boot Actuator](https://docs.spring.io/spring-boot/docs/2.5.6/reference/html/actuator.html#actuator.loggers).
 
-You can trigger the greeting controller path by going to [http://localhost:8080/greeting](http://localhost:8080/greeting).
+You can trigger the greeting controller path by going to [http://localhost:8080/](http://localhost:8080/).
 
 ## GreetingController
 
 The greeting controller is where the logger is created.  
 
-Here, we'll set up a custom field builder that can extract elements out of an HTTP request, then use it to ensure that contextual data is extracted when logging.  We can do this either using a logger, or an asynchronous logger that logs using a different executor.
+Here, we'll set up a custom field builder that can extract elements out of an HTTP request, then use it to ensure that contextual data is extracted when logging.
 
 Here's the whole `GreetingController` code:
 
 ```java
+
 @RestController
 public class GreetingController {
 
@@ -71,43 +71,35 @@ public class GreetingController {
   private final AtomicLong counter = new AtomicLong();
 
   private final Logger<HttpRequestFieldBuilder> logger =
-    LoggerFactory.getLogger(getClass())
-      .withFieldBuilder(HttpRequestFieldBuilder.class)
+    LoggerFactory.getLogger(getClass(), HttpRequestFieldBuilder.instance)
       .withFields(
-        fb -> {
+        fb ->
           // Any fields that you set in context you can set conditions on later,
           // i.e. on the URI path, content type, or extra headers.
           // These fields will be visible in the JSON file, not shown in console.
-          return fb.requestFields(httpServletRequest());
-        });
+          fb.requestFields(httpServletRequest())
+      );
 
   @NotNull
   private HttpServletRequest httpServletRequest() {
     return ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
   }
 
-  // For an async logger, we need to set thread local context if we have fields that depend on it
-  private final AsyncLogger<?> asyncLogger = AsyncLoggerFactory.getLogger()
-    .withFieldBuilder(HttpRequestFieldBuilder.class)
-    .withThreadLocal(() -> {
-      // get the request attributes in rendering thread...
-      final RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
-      // ...and the "set" in the runnable will be called in the logging executor's thread
-      return () -> RequestContextHolder.setRequestAttributes(requestAttributes);
-    }).withFields(fb -> fb.requestFields(httpServletRequest()));
-
-  @GetMapping("/greeting")
+  @GetMapping("/")
   public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
     // Log using a field builder to add a greeting_name field to JSON
-    logger.info("Greetings {}", fb -> fb.onlyString("greeting_name", name));
+    logger.info("Greetings {}", fb -> fb.string("greeting_name", name));
 
-    asyncLogger.info("this message is logged in a different thread");
+    // Clear MDC on every request...
+    MDC.clear();
+    
+    // You can put MDC in the current thread, and threadContext/threadLocal methods will work
+    MDC.put("contextKey", "contextValue");
+    MDC.put("currentInstant", Instant.now().toString());
 
-    // for async logger, if blocks don't work very well, instead use a handle method
-    asyncLogger.info(h -> {
-      // execution in this block takes place in the logger's thread
-      h.log("Complex logging statement goes here");
-    });
+    // and have it available as conditions and fields
+    Condition c = Condition.anyMatch(p -> Objects.equals(p.name(), "contextKey"));
+    logger.withThreadContext().info(c, "Calling withThreadContext() adds MDC variables!");
 
     return new Greeting(counter.incrementAndGet(), String.format(template, name));
   }
