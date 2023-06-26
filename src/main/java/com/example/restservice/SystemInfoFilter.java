@@ -1,6 +1,7 @@
 package com.example.restservice;
 
 import com.tersesystems.echopraxia.api.*;
+import com.tersesystems.echopraxia.spi.*;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
