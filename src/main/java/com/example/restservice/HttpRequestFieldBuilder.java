@@ -1,6 +1,9 @@
 package com.example.restservice;
 
 import com.tersesystems.echopraxia.api.*;
+import com.tersesystems.echopraxia.spi.*;
+
+import java.time.Instant;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -14,5 +17,9 @@ public class HttpRequestFieldBuilder implements PresentationFieldBuilder {
     var remoteAddressField = string("request_remote_addr", request.getRemoteAddr());
     var uniqueId = number("unique_id", System.currentTimeMillis());
     return list(urlField, methodField, remoteAddressField, uniqueId);
+  }
+
+  public static PresentationField kv(String name, Instant value) {
+    return instance.string(name, value.toString());
   }
 }
