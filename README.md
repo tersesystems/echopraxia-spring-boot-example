@@ -25,7 +25,7 @@ dependencies {
     implementation 'com.github.oshi:oshi-core:6.1.0'
 
     // typically you also want the latest version of logstash-logback-encoder as well..
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
 }
 ```
 
@@ -43,7 +43,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
 	implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.17.1'
-	
+
 	testImplementation('org.springframework.boot:spring-boot-starter-test')
 }
 ```
@@ -56,7 +56,7 @@ You can trigger the greeting controller path by going to [http://localhost:8080/
 
 ## GreetingController
 
-The greeting controller is where the logger is created.  
+The greeting controller is where the logger is created.
 
 Here, we'll set up a custom field builder that can extract elements out of an HTTP request, then use it to ensure that contextual data is extracted when logging.
 
@@ -92,7 +92,7 @@ public class GreetingController {
 
     // Clear MDC on every request...
     MDC.clear();
-    
+
     // You can put MDC in the current thread, and threadContext/threadLocal methods will work
     MDC.put("contextKey", "contextValue");
     MDC.put("currentInstant", Instant.now().toString());
