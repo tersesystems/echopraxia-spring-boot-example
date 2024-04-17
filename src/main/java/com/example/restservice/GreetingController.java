@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
+import static com.example.restservice.HttpRequestFieldBuilder.*;
+
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 
 import java.util.Objects;
@@ -43,9 +45,13 @@ public class GreetingController {
     // Log using a field builder to add a greeting_name field to JSON
     logger.info("Greetings {}", fb -> fb.string("greeting_name", name));
 
+    // Or you can just use fields as an argument
+    var instantField = kv("current_time", Instant.now());
+    logger.info("The current time is {}", instantField);
+
     // Clear MDC on every request...
     MDC.clear();
-    
+
     // You can put MDC in the current thread, and threadContext/threadLocal methods will work
     MDC.put("contextKey", "contextValue");
     MDC.put("currentInstant", Instant.now().toString());
