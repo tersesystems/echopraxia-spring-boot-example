@@ -18,14 +18,14 @@ Adding Echopraxia to Spring Boot is straightforward.  We add the logstash implem
 
 ```groovy
 dependencies {
-    implementation "com.tersesystems.echopraxia:logger:$version"
+    implementation "com.tersesystems.echopraxia:logger:$version" // or use :simple:
     implementation "com.tersesystems.echopraxia:logstash:$version"
     implementation "com.tersesystems.echopraxia:scripting:$version"
     // for the system info filter
-    implementation 'com.github.oshi:oshi-core:6.1.0'
+    implementation 'com.github.oshi:oshi-core:6.6.5'
 
     // typically you also want the latest version of logstash-logback-encoder as well..
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
 }
 ```
 
@@ -130,39 +130,41 @@ In addition to the explicitly defined fields added through loggers, there's anot
 ```java
 public class SystemInfoFilter implements CoreLoggerFilter {
 
-  private final SystemInfo systemInfo;
+    private static final FieldBuilder fieldBuilder = FieldBuilder.instance();
 
-  public SystemInfoFilter() {
-    systemInfo = new SystemInfo();
-  }
+    private final SystemInfo systemInfo;
 
-  @Override
-  public CoreLogger apply(CoreLogger coreLogger) {
-    HardwareAbstractionLayer hardware = systemInfo.getHardware();
-    GlobalMemory mem = hardware.getMemory();
-    CentralProcessor proc = hardware.getProcessor();
-    double[] loadAverage = proc.getSystemLoadAverage(3);
+    public SystemInfoFilter() {
+        systemInfo = new SystemInfo();
+    }
 
-    // Now you can add conditions based on these fields, and conditionally
-    // enable logging based on your load and memory!
-    return coreLogger.withFields(
-        fb -> {
-          Field loadField =
-              fb.object(
-                  "load_average", //
-                  fb.number("1min", loadAverage[0]), //
-                  fb.number("5min", loadAverage[1]), //
-                  fb.number("15min", loadAverage[2]));
-          Field memField =
-              fb.object(
-                  "mem", //
-                  fb.number("available", mem.getAvailable()), //
-                  fb.number("total", mem.getTotal()));
-          Field sysinfoField = fb.object("sysinfo", loadField, memField);
-          return fb.only(sysinfoField);
-        },
-        Field.Builder.instance());
-  }
+    @Override
+    public CoreLogger apply(CoreLogger coreLogger) {
+        HardwareAbstractionLayer hardware = systemInfo.getHardware();
+        GlobalMemory mem = hardware.getMemory();
+        CentralProcessor proc = hardware.getProcessor();
+        double[] loadAverage = proc.getSystemLoadAverage(3);
+
+        // Now you can add conditions based on these fields, and conditionally
+        // enable logging based on your load and memory!
+        return coreLogger.withFields(
+                fb -> {
+                    Field loadField =
+                            fb.object(
+                                    "load_average", //
+                                    fb.number("1min", loadAverage[0]), //
+                                    fb.number("5min", loadAverage[1]), //
+                                    fb.number("15min", loadAverage[2]));
+                    Field memField =
+                            fb.object(
+                                    "mem", //
+                                    fb.number("available", mem.getAvailable()), //
+                                    fb.number("total", mem.getTotal()));
+                    Field sysinfoField = fb.object("sysinfo", loadField, memField);
+                    return (sysinfoField);
+                },
+                fieldBuilder);
+    }
 }
 ```
 
@@ -175,86 +177,69 @@ There are two configurations available, Logback and Log4J.
 The implementation is done through `logback-spring.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Spring Boot has some logging documentation on the special properties / env vars for logging:
-
-  https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging
-
-  https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.logging
--->
 <configuration>
 
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <property scope="context" name="echopraxia.async.caller" value="true"/>
-
-    <!-- logs to /tmp/spring.log by default -->
-    <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}"/>
+    <!-- logs to /tmp/spring.ndjson by default -->
+    <!--    <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.ndjson}"/>-->
+    <property name="LOG_FILE" value="spring.ndjson"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <!-- only show INFO on console -->
+        <!-- show at most DEBUG on console -->
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>INFO</level>
+            <level>DEBUG</level>
         </filter>
         <encoder>
             <pattern>%date{H:mm:ss.SSS} %highlight(%-5level) [%thread]: %message%n%ex</pattern>
         </encoder>
     </appender>
 
-    <!-- make file contain JSON structured logging -->
-    <include resource="json-file-appender.xml" />
+    <!-- https://github.com/logfellow/logstash-logback-encoder -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+            <providers>
+                <timestamp>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <version/>
+                <message/>
+                <loggerName/>
+                <threadName/>
+                <logLevel/>
+                <logLevelValue/><!-- numeric value is useful for filtering >= -->
+                <stackHash/>
+                <!-- <mdc/> --> <!-- not showing mdc as we want to demo withContext() -->
+                <logstashMarkers/>
+                <arguments/>
+                <stackTrace/>
+            </providers>
+        </encoder>
+
+        <!-- use the default spring boot conventions here, but leverage a different encoder -->
+        <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN:-${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}</fileNamePattern>
+            <cleanHistoryOnStart>${LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START:-false}</cleanHistoryOnStart>
+            <maxFileSize>${LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE:-10MB}</maxFileSize>
+            <totalSizeCap>${LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP:-0}</totalSizeCap>
+            <maxHistory>${LOGBACK_ROLLINGPOLICY_MAX_HISTORY:-7}</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- should be using the disruptor appender by default -->
+    <appender name="ASYNCFILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
+        <appender-ref ref="FILE"/>
+    </appender>
 
     <logger name="com.example.restservice" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
-        <appender-ref ref="FILE" />
+        <appender-ref ref="ASYNCFILE" />
     </root>
 </configuration>
-```
-
-With the contents of `json-file-appender.xml`:
-
-```xml
-<included>
-    <!-- https://github.com/logfellow/logstash-logback-encoder -->
-
-    <!-- should be using the disruptor appender by default -->
-    <appender name="FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
-        <appender class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-                <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
-                <providers>
-                    <timestamp>
-                        <timeZone>UTC</timeZone>
-                    </timestamp>
-                    <version/>
-                    <message/>
-                    <loggerName/>
-                    <threadName/>
-                    <logLevel/>
-                    <logLevelValue/><!-- numeric value is useful for filtering >= -->
-                    <stackHash/>
-                    <!-- <mdc/> --> <!-- not showing mdc as we want to demo withContext() -->
-                    <logstashMarkers/>
-                    <arguments/>
-                    <stackTrace/>
-                </providers>
-            </encoder>
-
-            <!-- use the default spring boot conventions here, but leverage a different encoder -->
-            <file>${LOG_FILE}</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-                <fileNamePattern>${LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN:-${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz}</fileNamePattern>
-                <cleanHistoryOnStart>${LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START:-false}</cleanHistoryOnStart>
-                <maxFileSize>${LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE:-10MB}</maxFileSize>
-                <totalSizeCap>${LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP:-0}</totalSizeCap>
-                <maxHistory>${LOGBACK_ROLLINGPOLICY_MAX_HISTORY:-7}</maxHistory>
-            </rollingPolicy>
-        </appender>
-    </appender>
-</included>
 ```
 
 The file appender logs to `/tmp/spring.log` and contains JSON like this:
@@ -279,14 +264,15 @@ Note the `request_uri`, `request_remote_addr`, and `request_method` fields, whic
 
 ### Log4J
 
-For Log4J, the implementation is in `log4j-spring.xml` with a packages pointing to `com.tersesystems.echopraxia.log4j.layout`:
+For Log4J, the implementation is in `log4j-spring.xml` with a packages pointing to `echopraxia.log4j.layout`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN" packages="com.tersesystems.echopraxia.log4j.layout">
+<Configuration status="WARN" packages="echopraxia.log4j.layout">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT" follow="true">
-            <JsonTemplateLayout eventTemplateUri="classpath:LogstashJsonEventLayoutCustom.json"/>
+            <JsonTemplateLayout
+                    eventTemplateUri="classpath:LogstashJsonEventLayoutCustom.json"
+                    locationInfoEnabled="true"/>
         </Console>
     </Appenders>
     <Loggers>
