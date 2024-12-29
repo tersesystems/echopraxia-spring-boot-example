@@ -1,5 +1,6 @@
 package com.example.restservice;
 
+import echopraxia.api.Field;
 import echopraxia.logger.Logger;
 import echopraxia.logger.LoggerFactory;
 import echopraxia.logging.api.Condition;
@@ -10,8 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import static com.example.restservice.HttpRequestFieldBuilder.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
