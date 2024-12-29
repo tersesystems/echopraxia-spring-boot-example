@@ -1,11 +1,11 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.api.Condition;
-import com.tersesystems.echopraxia.Logger;
-import com.tersesystems.echopraxia.LoggerFactory;
-import com.tersesystems.echopraxia.scripting.ScriptCondition;
-import com.tersesystems.echopraxia.scripting.ScriptHandle;
-import com.tersesystems.echopraxia.scripting.ScriptWatchService;
+import echopraxia.logging.api.Condition;
+import echopraxia.logger.Logger;
+import echopraxia.logger.LoggerFactory;
+import echopraxia.scripting.ScriptCondition;
+import echopraxia.scripting.ScriptHandle;
+import echopraxia.scripting.ScriptWatchService;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;

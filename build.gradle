@@ -34,11 +34,11 @@ dependencies {
 	implementation "com.tersesystems.echopraxia:scripting:$version"
 
 	// for the system info filter
-	implementation 'com.github.oshi:oshi-core:6.1.6'
+	implementation 'com.github.oshi:oshi-core:6.6.5'
 
 	// Logstash implementation
 	implementation "com.tersesystems.echopraxia:logstash:$version"
-	implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+	implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
 
 	// Log4J implementation
 	//	implementation "com.tersesystems.echopraxia:log4j:$version"

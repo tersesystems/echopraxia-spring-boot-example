@@ -1,13 +1,12 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.api.*;
-import com.tersesystems.echopraxia.spi.*;
-
-import java.time.Instant;
+import echopraxia.api.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-public class HttpRequestFieldBuilder implements PresentationFieldBuilder {
+import java.time.Instant;
+
+public class HttpRequestFieldBuilder implements FieldBuilder {
 
   public static final HttpRequestFieldBuilder instance = new HttpRequestFieldBuilder();
 
@@ -19,7 +18,7 @@ public class HttpRequestFieldBuilder implements PresentationFieldBuilder {
     return list(urlField, methodField, remoteAddressField, uniqueId);
   }
 
-  public static PresentationField kv(String name, Instant value) {
-    return instance.string(name, value.toString());
+  public Field keyValue(String name, Instant instant) {
+    return keyValue(name, Value.string(instant.toString()));
   }
 }
