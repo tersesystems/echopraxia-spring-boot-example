@@ -1,8 +1,8 @@
 package com.example.restservice;
 
-import com.tersesystems.echopraxia.Logger;
-import com.tersesystems.echopraxia.LoggerFactory;
-import com.tersesystems.echopraxia.api.Condition;
+import echopraxia.logger.Logger;
+import echopraxia.logger.LoggerFactory;
+import echopraxia.logging.api.Condition;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.MDC;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,7 +46,7 @@ public class GreetingController {
     logger.info("Greetings {}", fb -> fb.string("greeting_name", name));
 
     // Or you can just use fields as an argument
-    var instantField = kv("current_time", Instant.now());
+    var instantField = HttpRequestFieldBuilder.instance.keyValue("current_time", Instant.now());
     logger.info("The current time is {}", instantField);
 
     // Clear MDC on every request...
